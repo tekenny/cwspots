@@ -1,0 +1,10 @@
+[Unit]
+Description=Fetch SKCC member roster
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cwspots
+WorkingDirectory=/opt/cwspots
+ExecStart=/opt/cwspots/venv/bin/python /opt/cwspots/fetch_skcc.py

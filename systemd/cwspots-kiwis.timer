@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly KiwiSDR station list refresh
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

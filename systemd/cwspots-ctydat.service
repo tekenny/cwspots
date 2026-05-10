@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh cty.dat DXCC data for CW Spotter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cwspots
+ExecStart=/usr/bin/curl -fsSL -o /opt/cwspots/cty.dat \
+    https://www.country-files.com/cty/cty.dat
+ExecStartPost=/usr/bin/systemctl restart cwspots

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CW Spotter">
+    <title>CW Spotter</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div id="header-left">
+            <span id="title">CW Spotter</span>
+            <span id="status" class="status-connecting">⬤ Connecting...</span>
+        </div>
+        <div id="header-right">
+            <button id="theme-btn" onclick="toggleTheme()">☀</button>
+            <button id="filter-btn" onclick="toggleFilters()">⚙ Filters</button>
+            <span id="spot-count">0 spots</span>
+        </div>
+    </header>
+    <div id="band-summary"></div>
+
+    <div id="filter-panel" class="hidden">
+        <div class="filter-section">
+            <label>Speed (WPM)</label>
+            <div class="range-row">
+                <input type="number" id="wpm-min" value="0"  min="0" max="200" placeholder="Min">
+                <span>–</span>
+                <input type="number" id="wpm-max" value="20" min="0" max="200" placeholder="Max">
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>Min SNR (dB)</label>
+            <input type="number" id="snr-min" value="0" min="-20" max="50">
+        </div>
+
+        <div class="filter-section">
+            <label>DX Continent</label>
+            <div class="chip-row" id="chips-dx">
+                <button class="chip active" data-group="dx" data-value="NA">NA</button>
+                <button class="chip active" data-group="dx" data-value="SA">SA</button>
+                <button class="chip active" data-group="dx" data-value="EU">EU</button>
+                <button class="chip active" data-group="dx" data-value="AF">AF</button>
+                <button class="chip active" data-group="dx" data-value="AS">AS</button>
+                <button class="chip active" data-group="dx" data-value="OC">OC</button>
+                <button class="chip active" data-group="dx" data-value="AN">AN</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>Spotter Continent</label>
+            <div class="chip-row" id="chips-spotter">
+                <button class="chip active" data-group="sp" data-value="NA">NA</button>
+                <button class="chip active" data-group="sp" data-value="SA">SA</button>
+                <button class="chip active" data-group="sp" data-value="EU">EU</button>
+                <button class="chip active" data-group="sp" data-value="AF">AF</button>
+                <button class="chip active" data-group="sp" data-value="AS">AS</button>
+                <button class="chip active" data-group="sp" data-value="OC">OC</button>
+                <button class="chip active" data-group="sp" data-value="AN">AN</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>Band (m)</label>
+            <div class="chip-row" id="chips-band">
+                <button class="chip active" data-group="band" data-value="160">160</button>
+                <button class="chip active" data-group="band" data-value="80">80</button>
+                <button class="chip active" data-group="band" data-value="60">60</button>
+                <button class="chip active" data-group="band" data-value="40">40</button>
+                <button class="chip active" data-group="band" data-value="30">30</button>
+                <button class="chip active" data-group="band" data-value="20">20</button>
+                <button class="chip active" data-group="band" data-value="17">17</button>
+                <button class="chip active" data-group="band" data-value="15">15</button>
+                <button class="chip active" data-group="band" data-value="12">12</button>
+                <button class="chip active" data-group="band" data-value="10">10</button>
+                <button class="chip active" data-group="band" data-value="6">6</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>Mode</label>
+            <div class="chip-row" id="chips-mode">
+                <button class="chip active" data-group="mode" data-value="CW">CW</button>
+                <button class="chip active" data-group="mode" data-value="RTTY">RTTY</button>
+                <button class="chip active" data-group="mode" data-value="FT8">FT8</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>Beacons</label>
+            <div class="seg-row">
+                <button class="seg active" data-group="beacon" data-value="both">Both</button>
+                <button class="seg" data-group="beacon" data-value="non-beacons">Non-beacons</button>
+                <button class="seg" data-group="beacon" data-value="beacons">Beacons only</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>SKCC Number</label>
+            <div class="seg-row">
+                <button class="seg active" data-group="skcc" data-value="hide">Hide</button>
+                <button class="seg" data-group="skcc" data-value="show">Show</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>KiwiSDR Mode</label>
+            <div class="seg-row">
+                <button class="seg active" data-group="kiwimode" data-value="static">Static</button>
+                <button class="seg" data-group="kiwimode" data-value="dynamic">Dynamic (nearest spotter)</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label>KiwiSDR Receivers</label>
+            <div id="kiwi-list"></div>
+            <div class="kiwi-add-row">
+                <input type="text" id="kiwi-name" placeholder="Name (e.g. W1AW)">
+                <input type="text" id="kiwi-url-input" placeholder="http://host:8073">
+                <button id="kiwi-add-btn" onclick="addKiwi()">+ Add</button>
+            </div>
+            <button id="kiwi-browse-btn" onclick="toggleKiwiBrowse()">Browse network stations...</button>
+            <div id="kiwi-browse-panel" class="hidden">
+                <input type="text" id="kiwi-search" placeholder="Search by name or callsign..." oninput="filterKiwiBrowse()">
+                <div id="kiwi-browse-list"></div>
+            </div>
+            <small>Tap a saved Kiwi above to make it active. Tap a spot to tune it.</small>
+        </div>
+
+        <div class="filter-actions">
+            <button id="cancel-btn" onclick="cancelFilters()">Cancel</button>
+            <button id="clear-btn" onclick="clearSpots()">Clear List</button>
+            <button id="apply-btn" onclick="applyFilters()">Apply</button>
+        </div>
+    </div>
+
+    <div id="spot-list"></div>
+
+    <script src="app.js?v=21"></script>
+</body>
+</html>

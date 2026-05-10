@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.cache/
+.local/
+.bash_history
+
+# Generated data files — populated at runtime by fetch scripts
+web/kiwi_stations.json
+web/skcc_members.json
+
+# cty.dat is downloaded by install — not tracked
+cty.dat

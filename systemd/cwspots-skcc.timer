@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly SKCC member roster refresh (Friday mornings)
+
+[Timer]
+OnCalendar=Fri *-*-* 06:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Renew Tailscale TLS certificate for nginx
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/tailscale cert \
+    --cert-file /etc/nginx/ssl/ts.crt \
+    --key-file  /etc/nginx/ssl/ts.key \
+    --min-validity 720h \
+    YOUR_TAILSCALE_HOSTNAME
+ExecStartPost=/usr/sbin/nginx -s reload

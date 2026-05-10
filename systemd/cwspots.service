@@ -1,0 +1,18 @@
+[Unit]
+Description=CW Spotter - RBN WebSocket Server
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cwspots
+WorkingDirectory=/opt/cwspots
+ExecStart=/opt/cwspots/venv/bin/python /opt/cwspots/server.py
+Restart=on-failure
+RestartSec=5
+Environment=RBN_CALLSIGN=YOUR_CALLSIGN
+Environment=PORT=8080
+Environment=WS_PORT=8081
+
+[Install]
+WantedBy=multi-user.target
