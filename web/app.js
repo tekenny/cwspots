@@ -2,12 +2,13 @@
 
 const MAX_SPOTS = 200;
 const AGE_TICK  = 10000;
+const APP_BASE  = new URL('./', document.currentScript?.src || window.location.href).pathname;
 
 function getWsUrl() {
     if (window.location.protocol === 'https:') {
-        return `wss://${window.location.host}/ws`;
+        return `wss://${window.location.host}${APP_BASE}ws`;
     }
-    return `ws://${window.location.host}/ws`;
+    return `ws://${window.location.host}${APP_BASE}ws`;
 }
 
 let ws      = null;
@@ -31,7 +32,9 @@ function connect() {
         lastMsgTime = Date.now();
         try {
             const msg = JSON.parse(e.data);
-            if (msg.type === 'spot' && isValidSpot(msg.data)) addSpot(msg.data);
+            if (msg.type === 'spot' && isValidSpot(msg.data) && spotMatchesFilters(msg.data)) {
+                addSpot(msg.data);
+            }
             if (msg.type === 'clear') clearSpots();
         } catch (_) {}
     };
@@ -85,6 +88,14 @@ function isValidSpot(data) {
         Number.isFinite(Number(data.band_m)) &&
         Number.isFinite(Number(data.freq_khz)) &&
         Number.isFinite(Number(data.timestamp));
+}
+
+function spotMatchesFilters(data) {
+    const wpm = Number(data.wpm);
+    const min = Number(filters.wpm_min ?? 0);
+    const max = Number(filters.wpm_max ?? 99);
+    return Number.isFinite(wpm) && Number.isFinite(min) && Number.isFinite(max) &&
+        wpm >= min && wpm <= max;
 }
 
 function resolveKiwiUrl(d) {
