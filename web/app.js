@@ -7,7 +7,7 @@ function getWsUrl() {
     if (window.location.protocol === 'https:') {
         return `wss://${window.location.host}/ws`;
     }
-    return `ws://${window.location.hostname}:8081`;
+    return `ws://${window.location.host}/ws`;
 }
 
 let ws      = null;
@@ -31,7 +31,8 @@ function connect() {
         lastMsgTime = Date.now();
         try {
             const msg = JSON.parse(e.data);
-            if (msg.type === 'spot') addSpot(msg.data);
+            if (msg.type === 'spot' && isValidSpot(msg.data)) addSpot(msg.data);
+            if (msg.type === 'clear') clearSpots();
         } catch (_) {}
     };
     ws.onclose = () => {
@@ -75,6 +76,14 @@ function addSpot(data) {
 
     updateCount();
     updateBandSummary();
+}
+
+function isValidSpot(data) {
+    return data && typeof data === 'object' &&
+        typeof data.dx === 'string' && data.dx.length > 0 &&
+        Number.isFinite(Number(data.band_m)) &&
+        Number.isFinite(Number(data.freq_khz)) &&
+        Number.isFinite(Number(data.timestamp));
 }
 
 function resolveKiwiUrl(d) {
@@ -167,8 +176,8 @@ function toggleFilters() {
 function loadFilterUI() {
     // Restore numeric inputs
     document.getElementById('wpm-min').value  = filters.wpm_min !== undefined ? filters.wpm_min : 0;
-    document.getElementById('wpm-max').value  = filters.wpm_max !== undefined ? filters.wpm_max : 20;
-    document.getElementById('snr-min').value  = filters.snr_min !== undefined ? filters.snr_min : 0;
+    document.getElementById('wpm-max').value  = filters.wpm_max !== undefined ? filters.wpm_max : 99;
+    document.getElementById('snr-min').value  = filters.snr_min !== undefined ? filters.snr_min : -99;
     renderKiwis();
 
     // Chips: fall back to all active if filter not set
@@ -209,8 +218,9 @@ function getChips(group) {
 function applyFilters() {
     const wpmMin  = parseInt(document.getElementById('wpm-min').value, 10) || 0;
     const wpmMaxR = parseInt(document.getElementById('wpm-max').value, 10);
-    const wpmMax  = Number.isFinite(wpmMaxR) ? wpmMaxR : 20;
-    const snrMin  = parseInt(document.getElementById('snr-min').value, 10) || 0;
+    const wpmMax  = Number.isFinite(wpmMaxR) ? wpmMaxR : 99;
+    const snrMinR  = parseInt(document.getElementById('snr-min').value, 10);
+    const snrMin  = Number.isFinite(snrMinR) ? snrMinR : -99;
 
     const beacon   = document.querySelector('.seg[data-group="beacon"].active')?.dataset.value || 'both';
     const newKiwiMode = document.querySelector('.seg[data-group="kiwimode"].active')?.dataset.value || 'static';
@@ -254,15 +264,23 @@ function clearSpots() {
 function loadFilters() {
     try {
         const saved = localStorage.getItem('cwspots_filters');
-        return saved ? JSON.parse(saved) : {};
+        const parsed = saved ? JSON.parse(saved) : {};
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     } catch (e) { return {}; }
 }
 
 function loadKiwis() {
     try {
         const saved = localStorage.getItem('kiwis');
-        return saved ? JSON.parse(saved) : [];
+        const parsed = saved ? JSON.parse(saved) : [];
+        return Array.isArray(parsed) ? parsed.filter(isValidKiwi) : [];
     } catch (e) { return []; }
+}
+
+function isValidKiwi(station) {
+    return station && typeof station === 'object' &&
+        typeof station.name === 'string' && station.name.trim() !== '' &&
+        typeof station.url === 'string' && station.url.trim() !== '';
 }
 
 function saveKiwis() {
@@ -390,10 +408,13 @@ async function loadKiwiDirectory() {
     const list = document.getElementById('kiwi-browse-list');
     list.innerHTML = '<div class="kiwi-empty">Loading...</div>';
     try {
-        const resp = await fetch('kiwi_stations.json');
+        const resp = await fetch('kiwi_stations.json', { cache: 'no-store' });
         if (!resp.ok) throw new Error(resp.status);
-        kiwiDirectory = await resp.json();
+        const directory = await resp.json();
+        if (!Array.isArray(directory)) throw new Error('invalid station list');
+        kiwiDirectory = directory.filter(isValidKiwi);
         filterKiwiBrowse();
+        rebuildRows();
     } catch (e) {
         list.innerHTML = '<div class="kiwi-empty">Failed to load station list.</div>';
     }
@@ -401,14 +422,23 @@ async function loadKiwiDirectory() {
 
 async function loadSkccMembers() {
     try {
-        const resp = await fetch('skcc_members.json');
+        const resp = await fetch('skcc_members.json', { cache: 'no-store' });
         if (!resp.ok) throw new Error(resp.status);
-        skccMembers = await resp.json();
+        const members = await resp.json();
+        if (!members || typeof members !== 'object' || Array.isArray(members)) {
+            throw new Error('invalid member list');
+        }
+        skccMembers = members;
         rebuildRows();
     } catch (e) {
         console.warn('Failed to load SKCC members:', e);
     }
 }
+
+setInterval(() => {
+    if (kiwiDirectory !== null) loadKiwiDirectory();
+    if (skccMembers !== null) loadSkccMembers();
+}, 15 * 60 * 1000);
 
 function skccLookup(dx) {
     if (!skccMembers) return null;

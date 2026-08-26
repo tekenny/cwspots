@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -317,6 +318,8 @@ class TestOnSpot:
             mock_dxcc.lookup.return_value = entity
             with patch("server.dxcc", mock_dxcc):
                 await server.on_spot(s)
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
             ws.send.assert_called_once()
             payload = json.loads(ws.send.call_args[0][0])
             assert payload["type"] == "spot"
@@ -361,7 +364,67 @@ class TestWsHandler:
         try:
             with patch.object(server.buffer, "recent", side_effect=[[first, second], [first, second]]):
                 await ws_handler(ws)
-            assert [item["data"]["band_m"] for item in ws.sent] == [20, 40, 40]
+            assert [item["type"] for item in ws.sent] == ["spot", "spot", "clear", "spot"]
+            assert [item["data"]["band_m"] for item in ws.sent if item["type"] == "spot"] == [20, 40, 40]
+            assert ws not in server.clients
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)
+
+    async def test_non_object_filter_is_ignored(self):
+        import server
+        ws = self.FakeWebSocket([json.dumps({"type": "filter", "filters": None})])
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        try:
+            with patch.object(server.buffer, "recent", return_value=[]):
+                await ws_handler(ws)
+            assert ws.filters == {}
+            assert ws not in server.clients
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)
+
+    async def test_malformed_list_filter_is_ignored(self):
+        import server
+        ws = self.FakeWebSocket([json.dumps({"type": "filter", "filters": {"modes": 1}})])
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        try:
+            with patch.object(server.buffer, "recent", return_value=[]):
+                await ws_handler(ws)
+            assert ws.filters == {"modes": 1}
+            assert ws not in server.clients
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)
+
+    async def test_replay_disconnect_removes_client(self):
+        import server
+        ws = self.FakeWebSocket([])
+        ws.send = AsyncMock(side_effect=websockets.ConnectionClosed(None, None))
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        try:
+            with patch.object(server.buffer, "recent", return_value=[make_spot()]):
+                await ws_handler(ws)
+            assert ws not in server.clients
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)
+
+    async def test_stalled_client_is_removed(self):
+        import server
+        ws = self._make_ws()
+        ws.send.side_effect = asyncio.TimeoutError
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        server.clients.add(ws)
+        try:
+            with patch("server.enrich", side_effect=lambda spot: spot):
+                await server.on_spot(make_spot())
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
             assert ws not in server.clients
         finally:
             server.clients.clear()
@@ -407,6 +470,8 @@ class TestWsHandler:
             mock_dxcc.lookup.return_value = entity
             with patch("server.dxcc", mock_dxcc):
                 await server.on_spot(s)
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
             assert ws not in server.clients
         finally:
             server.clients.clear()

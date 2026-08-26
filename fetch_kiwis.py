@@ -3,9 +3,10 @@
 import json
 import os
 import sys
+import tempfile
 import urllib.request
 
-SOURCE = "http://kiwisdr.com/tdoa/files/kiwi.gps.json"
+SOURCE = "https://kiwisdr.com/tdoa/files/kiwi.gps.json"
 OUT    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "kiwi_stations.json")
 
 
@@ -35,8 +36,11 @@ def main():
 
     stations.sort(key=lambda x: x["name"].lower())
 
-    with open(OUT, "w") as f:
+    directory = os.path.dirname(OUT)
+    with tempfile.NamedTemporaryFile("w", dir=directory, delete=False) as f:
         json.dump(stations, f, separators=(",", ":"))
+        temp_path = f.name
+    os.replace(temp_path, OUT)
 
     print(f"Saved {len(stations)} stations to {OUT}")
 

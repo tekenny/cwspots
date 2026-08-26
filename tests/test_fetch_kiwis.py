@@ -3,10 +3,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fetch_kiwis import main
+from fetch_kiwis import SOURCE, main
 
 
 class TestFetchKiwisMain:
+    def test_source_uses_https(self):
+        assert SOURCE.startswith("https://")
+
     def _response(self, payload):
         response = MagicMock()
         response.read.return_value = json.dumps(payload).encode("utf-8")

@@ -57,12 +57,9 @@ sudo -u cwspots /opt/cwspots/venv/bin/python /opt/cwspots/fetch_skcc.py
 echo "Installing systemd units..."
 
 # Main service with user's callsign
-sed "s/YOUR_CALLSIGN/$CALLSIGN/" "$SCRIPT_DIR/systemd/cwspots.service" \
-    > /etc/systemd/system/cwspots.service
+sed "s/YOUR_CALLSIGN/$CALLSIGN/" "$SCRIPT_DIR/systemd/cwspots.service" > /etc/systemd/system/cwspots.service
 
-for f in cwspots-kiwis.service cwspots-kiwis.timer \
-          cwspots-skcc.service  cwspots-skcc.timer \
-          cwspots-ctydat.service cwspots-ctydat.timer; do
+for f in cwspots-kiwis.service cwspots-kiwis.timer cwspots-skcc.service cwspots-skcc.timer cwspots-ctydat.service cwspots-ctydat.timer; do
     cp "$SCRIPT_DIR/systemd/$f" /etc/systemd/system/
 done
 
@@ -71,12 +68,6 @@ systemctl enable --now cwspots
 systemctl enable --now cwspots-kiwis.timer
 systemctl enable --now cwspots-skcc.timer
 systemctl enable --now cwspots-ctydat.timer
-
-# ── nginx ─────────────────────────────────────────────────────────────────────
-echo "Configuring nginx..."
-cp "$SCRIPT_DIR/nginx/cwspots.conf" /etc/nginx/conf.d/cwspots.conf
-systemctl enable --now nginx
-nginx -t && systemctl reload nginx
 
 # ── Firewall ──────────────────────────────────────────────────────────────────
 echo "Opening firewall port 8090..."
@@ -98,19 +89,22 @@ if [[ -n "$TS_HOST" ]]; then
         > /etc/systemd/system/cwspots-tlscert.service
     cp "$SCRIPT_DIR/systemd/cwspots-tlscert.timer" /etc/systemd/system/
 
-    # Enable HTTPS block in nginx config
-    sed -i 's/# HTTPS_BLOCK_START//' /etc/nginx/conf.d/cwspots.conf
-    sed -i 's/# HTTPS_BLOCK_END//'   /etc/nginx/conf.d/cwspots.conf
-    sed -i "s/YOUR_TAILSCALE_HOSTNAME/$TS_HOST/g" /etc/nginx/conf.d/cwspots.conf
-
     systemctl daemon-reload
     systemctl enable --now cwspots-tlscert.timer
 
     firewall-cmd --permanent --add-port=4443/tcp
     firewall-cmd --reload
 
-    nginx -t && systemctl reload nginx
+    sed -e 's/# HTTPS_BLOCK_START//' -e 's/# HTTPS_BLOCK_END//' -e "s/YOUR_TAILSCALE_HOSTNAME/$TS_HOST/g" "$SCRIPT_DIR/nginx/cwspots.conf" > /etc/nginx/conf.d/cwspots.conf
+else
+    sed '/^# HTTPS_BLOCK_START/,/^# HTTPS_BLOCK_END/d' "$SCRIPT_DIR/nginx/cwspots.conf" > /etc/nginx/conf.d/cwspots.conf
 fi
+
+# ── nginx ─────────────────────────────────────────────────────────────────────
+echo "Configuring nginx..."
+nginx -t
+systemctl enable --now nginx
+systemctl reload nginx
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo

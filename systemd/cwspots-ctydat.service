@@ -5,7 +5,5 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=cwspots
-ExecStart=/usr/bin/curl -fsSL -o /opt/cwspots/cty.dat \
-    https://www.country-files.com/cty/cty.dat
+ExecStart=/bin/sh -c '/usr/bin/curl -fsSL -o /opt/cwspots/cty.dat.tmp https://www.country-files.com/cty/cty.dat && /usr/bin/mv /opt/cwspots/cty.dat.tmp /opt/cwspots/cty.dat'
 ExecStartPost=/usr/bin/systemctl restart cwspots

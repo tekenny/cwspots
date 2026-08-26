@@ -5,6 +5,7 @@ import io
 import json
 import os
 import sys
+import tempfile
 import urllib.request
 
 SOURCE = "https://www.skccgroup.com/membership_data/skccdata.txt"
@@ -40,8 +41,11 @@ def main():
             "entity": row.get("DXENTITY", "").strip(),
         }
 
-    with open(OUT, "w") as f:
+    directory = os.path.dirname(OUT)
+    with tempfile.NamedTemporaryFile("w", dir=directory, delete=False) as f:
         json.dump(members, f, separators=(",", ":"))
+        temp_path = f.name
+    os.replace(temp_path, OUT)
 
     print(f"Saved {len(members)} SKCC members to {OUT}")
 
