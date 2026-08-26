@@ -59,6 +59,7 @@ function addSpot(data) {
 
     // If this DX+band is already displayed, remove the old row first
     const existing = spots.get(key);
+    if (existing && Number(data.timestamp) < Number(existing.data.timestamp)) return;
     if (existing) existing.el.remove();
 
     const el = buildRow(data);

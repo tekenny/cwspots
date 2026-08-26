@@ -29,6 +29,7 @@ dxcc       = DXCCLookup(os.environ.get("CTY_FILE", "cty.dat"))
 buffer     = SpotBuffer(window_seconds=600)
 clients: set[websockets.WebSocketServerProtocol] = set()
 pending_sends: dict[asyncio.Task, websockets.WebSocketServerProtocol] = {}
+last_spot_time: float | None = None
 
 
 def enrich(spot: Spot) -> Spot:
@@ -92,8 +93,10 @@ def spot_matches(spot: Spot, filters: dict) -> bool:
 
 
 async def on_spot(spot: Spot) -> None:
+    global last_spot_time
     spot = enrich(spot)
     buffer.add(spot)
+    last_spot_time = time.time()
 
     if not clients:
         return
@@ -169,10 +172,17 @@ async def ws_handler(ws: websockets.WebSocketServerProtocol) -> None:
 async def index_handler(request):
     return web.FileResponse(os.path.join(WEB_DIR, "index.html"))
 
+
+async def health_handler(request):
+    return web.json_response({
+        "status": "ok",
+        "clients": len(clients),
+        "last_spot": last_spot_time,
+    })
+
 async def main():
     if CALLSIGN == "YOURCALL":
-        logger.error("Set RBN_CALLSIGN environment variable before starting")
-        return
+        raise RuntimeError("Set RBN_CALLSIGN environment variable before starting")
 
     logger.info(f"Starting CW Spotter  callsign={CALLSIGN}  "
                 f"http=:{HTTP_PORT}  ws=:{WS_PORT}")
@@ -180,6 +190,7 @@ async def main():
     # HTTP server for static files
     app = web.Application()
     app.router.add_get("/", index_handler)
+    app.router.add_get("/healthz", health_handler)
     app.router.add_static("/", WEB_DIR, show_index=False)
     runner = web.AppRunner(app)
     await runner.setup()
@@ -193,10 +204,16 @@ async def main():
 
     # RBN client
     rbn = RBNClient(callsign=CALLSIGN, on_spot=on_spot)
-    await asyncio.gather(
-        rbn.run(),
-        ws_server.wait_closed(),
-    )
+    try:
+        await asyncio.gather(rbn.run(), ws_server.wait_closed())
+    finally:
+        ws_server.close()
+        await ws_server.wait_closed()
+        for task in list(pending_sends):
+            task.cancel()
+        if pending_sends:
+            await asyncio.gather(*pending_sends, return_exceptions=True)
+        await runner.cleanup()
 
 
 if __name__ == "__main__":

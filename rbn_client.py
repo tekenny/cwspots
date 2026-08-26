@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import re
 import time
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 RBN_HOST = "telnet.reversebeacon.net"
 RBN_PORT = 7000
+RBN_LINE_LIMIT = 4096
 
 SPOT_RE = re.compile(
     r"^DX de\s+(?P<spotter>[A-Z0-9/\-#]+):\s+"
@@ -47,7 +49,7 @@ class RBNClient:
 
     async def _connect_and_read(self) -> None:
         logger.info(f"Connecting to {self.host}:{self.port}...")
-        reader, writer = await asyncio.open_connection(self.host, self.port)
+        reader, writer = await asyncio.open_connection(self.host, self.port, limit=RBN_LINE_LIMIT)
         logger.info("Connected to RBN")
         try:
             try:
@@ -61,7 +63,7 @@ class RBNClient:
             while True:
                 try:
                     line_bytes = await asyncio.wait_for(reader.readline(), timeout=120)
-                except asyncio.TimeoutError:
+                except (asyncio.TimeoutError, ValueError):
                     logger.warning("No data from RBN for 120s, reconnecting")
                     return
                 if not line_bytes:
@@ -75,6 +77,11 @@ class RBNClient:
                     await self.on_spot(spot)
         finally:
             writer.close()
+            wait_closed = getattr(writer, "wait_closed", None)
+            if wait_closed is not None:
+                result = wait_closed()
+                if inspect.isawaitable(result):
+                    await result
 
     def _parse_line(self, line: str) -> Spot | None:
         match = SPOT_RE.match(line)
