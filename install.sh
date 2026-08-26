@@ -21,7 +21,7 @@ read -rp "Tailscale hostname for HTTPS (leave blank to skip): " TS_HOST
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 echo "Installing dependencies..."
-dnf install -y python3.12 python3.12-pip nginx curl
+dnf install -y python3.12 python3.12-pip nginx curl firewalld
 
 # ── User and directory ────────────────────────────────────────────────────────
 if ! id cwspots &>/dev/null; then
@@ -57,7 +57,10 @@ sudo -u cwspots /opt/cwspots/venv/bin/python /opt/cwspots/fetch_skcc.py
 echo "Installing systemd units..."
 
 # Main service with user's callsign
-sed "s/YOUR_CALLSIGN/$CALLSIGN/" "$SCRIPT_DIR/systemd/cwspots.service" > /etc/systemd/system/cwspots.service
+ESCAPED_CALLSIGN=${CALLSIGN//\\/\\\\}
+ESCAPED_CALLSIGN=${ESCAPED_CALLSIGN//&/\\&}
+ESCAPED_CALLSIGN=${ESCAPED_CALLSIGN//|/\\|}
+sed "s|YOUR_CALLSIGN|$ESCAPED_CALLSIGN|" "$SCRIPT_DIR/systemd/cwspots.service" > /etc/systemd/system/cwspots.service
 
 for f in cwspots-kiwis.service cwspots-kiwis.timer cwspots-skcc.service cwspots-skcc.timer cwspots-ctydat.service cwspots-ctydat.timer; do
     cp "$SCRIPT_DIR/systemd/$f" /etc/systemd/system/
@@ -71,6 +74,7 @@ systemctl enable --now cwspots-ctydat.timer
 
 # ── Firewall ──────────────────────────────────────────────────────────────────
 echo "Opening firewall port 8090..."
+systemctl enable --now firewalld
 firewall-cmd --permanent --add-port=8090/tcp
 firewall-cmd --reload
 

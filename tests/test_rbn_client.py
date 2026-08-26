@@ -234,6 +234,7 @@ class TestConnectAndRead:
 
         writer.write.assert_called_once_with(b"W1AW\r\n")
         writer.drain.assert_awaited_once()
+        writer.close.assert_called_once_with()
 
     async def test_read_timeout_closes_connection(self):
         reader = AsyncMock()
@@ -245,5 +246,20 @@ class TestConnectAndRead:
 
         with patch("rbn_client.asyncio.open_connection", return_value=(reader, writer)):
             await client._connect_and_read()
+
+        writer.close.assert_called_once_with()
+
+    async def test_callback_failure_closes_connection(self):
+        reader = AsyncMock()
+        reader.readuntil = AsyncMock(return_value=b":")
+        reader.readline = AsyncMock(return_value=(VALID_LINE + "\r\n").encode("ascii"))
+        writer = MagicMock()
+        writer.drain = AsyncMock()
+        on_spot = AsyncMock(side_effect=RuntimeError("callback failed"))
+        client = make_client(on_spot=on_spot)
+
+        with patch("rbn_client.asyncio.open_connection", return_value=(reader, writer)):
+            with pytest.raises(RuntimeError, match="callback failed"):
+                await client._connect_and_read()
 
         writer.close.assert_called_once_with()

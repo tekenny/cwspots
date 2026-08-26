@@ -50,29 +50,31 @@ class RBNClient:
         reader, writer = await asyncio.open_connection(self.host, self.port)
         logger.info("Connected to RBN")
         try:
-            await asyncio.wait_for(reader.readuntil(b":"), timeout=15)
-            writer.write(f"{self.callsign}\r\n".encode())
-            await writer.drain()
-        except asyncio.TimeoutError:
-            writer.write(f"{self.callsign}\r\n".encode())
-            await writer.drain()
-        logger.info(f"Logged in as {self.callsign}")
-        while True:
             try:
-                line_bytes = await asyncio.wait_for(reader.readline(), timeout=120)
+                await asyncio.wait_for(reader.readuntil(b":"), timeout=15)
+                writer.write(f"{self.callsign}\r\n".encode())
+                await writer.drain()
             except asyncio.TimeoutError:
-                logger.warning("No data from RBN for 120s, reconnecting")
-                writer.close()
-                return
-            if not line_bytes:
-                logger.info("RBN closed the connection")
-                return
-            line = line_bytes.decode("ascii", errors="replace").strip()
-            if not line:
-                continue
-            spot = self._parse_line(line)
-            if spot:
-                await self.on_spot(spot)
+                writer.write(f"{self.callsign}\r\n".encode())
+                await writer.drain()
+            logger.info(f"Logged in as {self.callsign}")
+            while True:
+                try:
+                    line_bytes = await asyncio.wait_for(reader.readline(), timeout=120)
+                except asyncio.TimeoutError:
+                    logger.warning("No data from RBN for 120s, reconnecting")
+                    return
+                if not line_bytes:
+                    logger.info("RBN closed the connection")
+                    return
+                line = line_bytes.decode("ascii", errors="replace").strip()
+                if not line:
+                    continue
+                spot = self._parse_line(line)
+                if spot:
+                    await self.on_spot(spot)
+        finally:
+            writer.close()
 
     def _parse_line(self, line: str) -> Spot | None:
         match = SPOT_RE.match(line)

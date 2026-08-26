@@ -430,6 +430,23 @@ class TestWsHandler:
             server.clients.clear()
             server.clients.update(old_clients)
 
+    async def test_unexpected_send_error_removes_client(self):
+        import server
+        ws = self._make_ws()
+        ws.send.side_effect = OSError("socket failed")
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        server.clients.add(ws)
+        try:
+            with patch("server.enrich", side_effect=lambda spot: spot):
+                await server.on_spot(make_spot())
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            assert ws not in server.clients
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)
+
     async def test_spot_not_sent_to_non_matching_client(self):
         import server
         ws = self._make_ws(filters={"bands": [40]})

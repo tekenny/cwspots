@@ -110,14 +110,18 @@ async def on_spot(spot: Spot) -> None:
 async def _send_spot(ws, msg: str) -> bool:
     try:
         await asyncio.wait_for(ws.send(msg), timeout=SEND_TIMEOUT)
-    except (websockets.ConnectionClosed, asyncio.TimeoutError):
+    except Exception:
         return False
     return True
 
 
 def _finish_send(task: asyncio.Task) -> None:
     ws = pending_sends.pop(task, None)
-    if ws is not None and not task.result():
+    try:
+        success = task.result()
+    except Exception:
+        success = False
+    if ws is not None and not success:
         clients.discard(ws)
 
 
