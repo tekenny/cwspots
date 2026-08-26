@@ -11,8 +11,8 @@ ExecStart=/opt/cwspots/venv/bin/python /opt/cwspots/server.py
 Restart=on-failure
 RestartSec=5
 Environment=RBN_CALLSIGN=YOUR_CALLSIGN
-Environment=PORT=8080
-Environment=WS_PORT=8081
+Environment=PORT=8082
+Environment=WS_PORT=8083
 
 [Install]
 WantedBy=multi-user.target

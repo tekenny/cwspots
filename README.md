@@ -148,9 +148,14 @@ All configuration is via environment variables in `cwspots.service`:
 | Variable | Default | Description |
 |---|---|---|
 | `RBN_CALLSIGN` | *(required)* | Your callsign, used to log in to the RBN feed |
-| `PORT` | `8080` | aiohttp HTTP port |
-| `WS_PORT` | `8081` | WebSocket port |
+| `PORT` | `8082` | aiohttp HTTP port |
+| `WS_PORT` | `8083` | WebSocket port |
 | `CTY_FILE` | `cty.dat` | Path to the DXCC prefix data file |
+
+The installed service uses loopback ports `8082` (HTTP) and `8083` (WebSocket).
+The standalone nginx configuration exposes the app on port `8090`; when using
+the sibling `webapp-index` project, register or run it at `/cwspots` through
+that project's Tailscale proxy.
 
 ## Tests and Coverage
 

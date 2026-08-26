@@ -23,12 +23,16 @@ HTTP_PORT  = int(os.environ.get("PORT", 8080))
 WS_PORT    = int(os.environ.get("WS_PORT", 8081))
 WEB_DIR    = os.path.join(os.path.dirname(__file__), "web")
 SEND_TIMEOUT = 10
+MAX_CLIENTS = 100
+MAX_FILTER_BYTES = 64 * 1024
+MAX_PENDING_SENDS_PER_CLIENT = 4
 
 # --- Shared state ---
 dxcc       = DXCCLookup(os.environ.get("CTY_FILE", "cty.dat"))
 buffer     = SpotBuffer(window_seconds=600)
 clients: set[websockets.WebSocketServerProtocol] = set()
 pending_sends: dict[asyncio.Task, websockets.WebSocketServerProtocol] = {}
+pending_counts: dict[websockets.WebSocketServerProtocol, int] = {}
 last_spot_time: float | None = None
 
 
@@ -105,30 +109,42 @@ async def on_spot(spot: Spot) -> None:
     for ws in clients.copy():
         filters = getattr(ws, "filters", {})
         if spot_matches(spot, filters):
+            if pending_counts.get(ws, 0) >= MAX_PENDING_SENDS_PER_CLIENT:
+                continue
             task = asyncio.create_task(_send_spot(ws, msg))
             pending_sends[task] = ws
+            pending_counts[ws] = pending_counts.get(ws, 0) + 1
             task.add_done_callback(_finish_send)
 
 
 async def _send_spot(ws, msg: str) -> bool:
     try:
         await asyncio.wait_for(ws.send(msg), timeout=SEND_TIMEOUT)
-    except Exception:
+    except BaseException:
         return False
     return True
 
 
 def _finish_send(task: asyncio.Task) -> None:
     ws = pending_sends.pop(task, None)
+    if ws is not None:
+        count = pending_counts.get(ws, 1) - 1
+        if count:
+            pending_counts[ws] = count
+        else:
+            pending_counts.pop(ws, None)
     try:
         success = task.result()
-    except Exception:
+    except BaseException:
         success = False
     if ws is not None and not success:
         clients.discard(ws)
 
 
 async def ws_handler(ws: websockets.WebSocketServerProtocol) -> None:
+    if len(clients) >= MAX_CLIENTS:
+        await ws.close(code=1013, reason="server is at capacity")
+        return
     ws.filters = {}
     clients.add(ws)
     remote = ws.remote_address
@@ -145,6 +161,8 @@ async def ws_handler(ws: websockets.WebSocketServerProtocol) -> None:
                 )
         async for message in ws:
             try:
+                if len(message) > MAX_FILTER_BYTES:
+                    continue
                 msg = json.loads(message)
                 if isinstance(msg, dict) and msg.get("type") == "filter":
                     filters = msg.get("filters", {})
@@ -165,6 +183,10 @@ async def ws_handler(ws: websockets.WebSocketServerProtocol) -> None:
         pass
     finally:
         clients.discard(ws)
+        pending_counts.pop(ws, None)
+        for task, task_ws in list(pending_sends.items()):
+            if task_ws is ws:
+                task.cancel()
         logger.info(f"WS client disconnected: {remote}  total={len(clients)}")
 
 
@@ -194,12 +216,15 @@ async def main():
     app.router.add_static("/", WEB_DIR, show_index=False)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", HTTP_PORT)
+    site = web.TCPSite(runner, "127.0.0.1", HTTP_PORT)
     await site.start()
     logger.info(f"HTTP server running on port {HTTP_PORT}")
 
     # WebSocket server
-    ws_server = await serve(ws_handler, "0.0.0.0", WS_PORT)
+    ws_server = await serve(
+        ws_handler, "127.0.0.1", WS_PORT,
+        max_size=MAX_FILTER_BYTES, max_queue=16,
+    )
     logger.info(f"WebSocket server running on port {WS_PORT}")
 
     # RBN client
