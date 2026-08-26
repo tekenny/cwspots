@@ -24,7 +24,7 @@ WS_PORT    = int(os.environ.get("WS_PORT", 8081))
 WEB_DIR    = os.path.join(os.path.dirname(__file__), "web")
 
 # --- Shared state ---
-dxcc       = DXCCLookup("cty.dat")
+dxcc       = DXCCLookup(os.environ.get("CTY_FILE", "cty.dat"))
 buffer     = SpotBuffer(window_seconds=600)
 clients: set[websockets.WebSocketServerProtocol] = set()
 

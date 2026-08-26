@@ -171,7 +171,8 @@ class TestConnectAndRead:
         client = make_client(on_spot=on_spot)
 
         reader = AsyncMock()
-        writer = AsyncMock()
+        writer = MagicMock()
+        writer.drain = AsyncMock()
         writer.close = MagicMock()
 
         reader.readuntil = AsyncMock(return_value=b"login:")
@@ -204,7 +205,8 @@ class TestConnectAndRead:
         on_spot.assert_not_called()
 
     async def test_login_callsign_sent(self):
-        writer = AsyncMock()
+        writer = MagicMock()
+        writer.drain = AsyncMock()
         writer.close = MagicMock()
         reader = AsyncMock()
         reader.readuntil = AsyncMock(return_value=b"login:")
@@ -218,3 +220,30 @@ class TestConnectAndRead:
 
         write_calls = [call[0][0] for call in writer.write.call_args_list]
         assert any(b"TEST" in c for c in write_calls)
+
+    async def test_login_prompt_timeout_still_sends_callsign(self):
+        reader = AsyncMock()
+        reader.readuntil = AsyncMock(side_effect=asyncio.TimeoutError)
+        reader.readline = AsyncMock(return_value=b"")
+        writer = MagicMock()
+        writer.drain = AsyncMock()
+        client = make_client()
+
+        with patch("rbn_client.asyncio.open_connection", return_value=(reader, writer)):
+            await client._connect_and_read()
+
+        writer.write.assert_called_once_with(b"W1AW\r\n")
+        writer.drain.assert_awaited_once()
+
+    async def test_read_timeout_closes_connection(self):
+        reader = AsyncMock()
+        reader.readuntil = AsyncMock(return_value=b":")
+        reader.readline = AsyncMock(side_effect=asyncio.TimeoutError)
+        writer = MagicMock()
+        writer.drain = AsyncMock()
+        client = make_client()
+
+        with patch("rbn_client.asyncio.open_connection", return_value=(reader, writer)):
+            await client._connect_and_read()
+
+        writer.close.assert_called_once_with()

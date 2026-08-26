@@ -1,4 +1,6 @@
 import time
+import os
+from pathlib import Path
 import pytest
 from spots import Spot
 
@@ -17,6 +19,9 @@ Brazil:                   11:  15:  SA:  -10.00:    53.00:    -3.0:  PY:
 South Africa:             38:  57:  AF:  -29.10:   -26.00:    -2.0:  ZS:
     S8,ZR,ZS,ZT,ZU;
 """
+
+os.environ.setdefault("CTY_FILE", str(Path(__file__).with_name("cty.dat")))
+Path(os.environ["CTY_FILE"]).write_text(MINIMAL_CTY, encoding="utf-8")
 
 
 @pytest.fixture

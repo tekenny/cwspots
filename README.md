@@ -150,6 +150,20 @@ All configuration is via environment variables in `cwspots.service`:
 | `RBN_CALLSIGN` | *(required)* | Your callsign, used to log in to the RBN feed |
 | `PORT` | `8080` | aiohttp HTTP port |
 | `WS_PORT` | `8081` | WebSocket port |
+| `CTY_FILE` | `cty.dat` | Path to the DXCC prefix data file |
+
+## Tests and Coverage
+
+Install the Python dependencies, then run the test suite from the project directory:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pytest
+```
+
+The test configuration measures coverage for all Python application modules and fails
+when overall coverage falls below 80%. The browser JavaScript is not included in this
+Python coverage measurement.
 
 ## Updating
 

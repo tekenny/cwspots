@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import websockets
 
-from server import spot_matches, enrich
+from server import spot_matches, enrich, ws_handler
 from conftest import make_spot
 
 
@@ -320,6 +320,49 @@ class TestOnSpot:
             ws.send.assert_called_once()
             payload = json.loads(ws.send.call_args[0][0])
             assert payload["type"] == "spot"
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)
+
+
+@pytest.mark.asyncio
+class TestWsHandler:
+    def _make_ws(self, filters=None):
+        ws = AsyncMock()
+        ws.filters = filters or {}
+        ws.send = AsyncMock()
+        return ws
+
+    class FakeWebSocket:
+        def __init__(self, messages):
+            self.messages = iter(messages)
+            self.sent = []
+            self.remote_address = ("127.0.0.1", 1234)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self.messages)
+            except StopIteration as error:
+                raise StopAsyncIteration from error
+
+        async def send(self, message):
+            self.sent.append(json.loads(message))
+
+    async def test_replays_and_applies_filter(self):
+        import server
+        first = make_spot(band_m=20)
+        second = make_spot(band_m=40)
+        ws = self.FakeWebSocket(["not json", json.dumps({"type": "filter", "filters": {"bands": [40]}})])
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        try:
+            with patch.object(server.buffer, "recent", side_effect=[[first, second], [first, second]]):
+                await ws_handler(ws)
+            assert [item["data"]["band_m"] for item in ws.sent] == [20, 40, 40]
+            assert ws not in server.clients
         finally:
             server.clients.clear()
             server.clients.update(old_clients)
