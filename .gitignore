@@ -12,3 +12,6 @@ web/skcc_members.json
 
 # cty.dat is downloaded by install — not tracked
 cty.dat
+
+# pytest-cov data file
+.coverage

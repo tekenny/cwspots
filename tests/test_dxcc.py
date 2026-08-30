@@ -61,11 +61,29 @@ class TestLookup:
         assert e is not None
         assert e.continent == "AS"
 
-    def test_callsign_with_slash_takes_longer_part(self, dxcc):
-        # W1AW/JA1 — longer part is "JA1" but JA is in our fixture
+    def test_a_prefix_portable_call_is_where_the_prefix_says(self, dxcc):
+        """REGRESSION: the longest segment decided, so the prefix was ignored.
+
+        W/JA1ABC is a Japanese operator working from the United States, and the
+        W is the whole point of writing it that way. Taking the longer part
+        reported Asia -- the operator's home entity, not the one they are
+        putting on the air. The location indicator is the shorter segment,
+        because it is a prefix rather than a full callsign.
+        """
         e = dxcc.lookup("W/JA1ABC")
         assert e is not None
+        assert e.continent == "NA"
+
+    def test_a_suffix_portable_call_keeps_its_own_entity(self, dxcc):
+        """The other direction still works: /P says nothing about location."""
+        e = dxcc.lookup("JA1ABC/P")
+        assert e is not None
         assert e.continent == "AS"
+
+    def test_a_call_area_digit_does_not_change_the_entity(self, dxcc):
+        e = dxcc.lookup("W1AW/4")
+        assert e is not None
+        assert e.continent == "NA"
 
     def test_callsign_with_slash_portable(self, dxcc):
         # G3XYZ/P — longer is G3XYZ, G is in fixture
@@ -155,3 +173,37 @@ class TestIntegrationRealCtyDat:
 
     def test_many_prefixes_loaded(self):
         assert len(self.dxcc.prefixes) > 300
+
+
+# ---------------------------------------------------------------------------
+# Exact-callsign overrides
+# ---------------------------------------------------------------------------
+
+class TestExactOverrides:
+    """REGRESSION: BigCTY's '=' exact matches were filed as prefixes.
+
+    The marker was stripped and the callsign added to the prefix table, so all
+    of them became prefixes: '=4U1UN' turned into a five-character prefix that
+    also claimed '4U1UNX', and any override could shadow a real prefix.
+    """
+
+    def test_an_exact_override_wins_for_its_own_callsign(self, dxcc):
+        e = dxcc.lookup("W1XYZ")
+        assert e is not None
+        assert "Special" in e.name
+
+    def test_an_exact_override_does_not_claim_longer_callsigns(self, dxcc):
+        # W1XYZQ is not W1XYZ; it falls through to the ordinary W prefix.
+        e = dxcc.lookup("W1XYZQ")
+        assert e is not None
+        assert "Special" not in e.name
+        assert "United States" in e.name
+
+    def test_overrides_are_kept_out_of_the_prefix_table(self, dxcc):
+        assert "W1XYZ" in dxcc.exact
+        assert "W1XYZ" not in dxcc.prefixes
+
+    def test_an_exact_override_beats_the_slash_handling(self, dxcc):
+        # An override naming a slashed call is matched whole, before segments
+        # are considered at all.
+        assert dxcc.lookup("W1XYZ") is dxcc.exact["W1XYZ"]

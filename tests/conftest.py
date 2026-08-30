@@ -18,6 +18,8 @@ Brazil:                   11:  15:  SA:  -10.00:    53.00:    -3.0:  PY:
     PP,PQ,PR,PS,PT,PU,PV,PW,PX,PY,ZV,ZW,ZX,ZY,ZZ;
 South Africa:             38:  57:  AF:  -29.10:   -26.00:    -2.0:  ZS:
     S8,ZR,ZS,ZT,ZU;
+Special Callsign Entity:  05:  08:  NA:   43.00:    87.90:    -5.0:  W1XYZ:
+    =W1XYZ;
 """
 
 os.environ.setdefault("CTY_FILE", str(Path(__file__).with_name("cty.dat")))

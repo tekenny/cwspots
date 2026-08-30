@@ -127,11 +127,11 @@ function buildRow(d) {
     a.innerHTML = `
         <span class="spot-dx">
             ${esc(d.dx)}
-            ${cont ? `<span class="cont-badge cont-${cont}">${cont}</span>` : ''}${skccBadge}
+            ${cont ? `<span class="cont-badge cont-${esc(cont)}">${esc(cont)}</span>` : ''}${skccBadge}
         </span>
         <span class="spot-detail">
             <span class="spot-freq">${freq} kHz</span>
-            <span class="spot-entity">${esc(d.dx_entity || '')} · via ${esc(d.spotter)}(${d.spotter_continent || '??'})</span>
+            <span class="spot-entity">${esc(d.dx_entity || '')} · via ${esc(d.spotter)}(${esc(d.spotter_continent || '??')})</span>
         </span>
         <span class="spot-band">${d.band_m}m</span>
         <span class="spot-wpm">${d.wpm} wpm</span>
@@ -519,7 +519,7 @@ function rebuildRows() {
             const cont       = data.dx_continent || '';
             const member     = skccShow ? skccLookup(data.dx) : null;
             const skccBadge  = member ? `<span class="skcc-badge">${esc(member.nr)}</span>` : '';
-            dxSpan.innerHTML = `${esc(data.dx)}${cont ? `<span class="cont-badge cont-${cont}">${cont}</span>` : ''}${skccBadge}`;
+            dxSpan.innerHTML = `${esc(data.dx)}${cont ? `<span class="cont-badge cont-${esc(cont)}">${esc(cont)}</span>` : ''}${skccBadge}`;
         }
     });
 }
@@ -539,11 +539,16 @@ function toggleTheme() {
 function allContinents() { return ['NA','SA','EU','AF','AS','OC','AN']; }
 function allBands()      { return [160,80,60,40,30,20,17,15,12,10,6]; }
 
+// Quotes included: without them this is only safe in a text node, and a value
+// that reaches an attribute -- as dx_continent does, in class="cont-${cont}" --
+// could close it and add attributes of its own.
 function esc(s) {
     return String(s)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // Chip toggle (multi-select)

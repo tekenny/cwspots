@@ -508,3 +508,56 @@ class TestWsHandler:
         finally:
             server.clients.clear()
             server.clients.update(old_clients)
+
+    async def test_a_ping_is_answered_with_a_pong(self):
+        """REGRESSION: the server never answered the page's keepalive.
+
+        The page closes the socket after three minutes with no message received
+        and pings every 45 s expecting that to prove the link is alive. Nothing
+        replied, so on a quiet band -- no spots to send -- the silence was
+        indistinguishable from a dead server: the client tore the socket down
+        and reconnected every three minutes, and each reconnect resends its
+        filters, which makes this handler emit a "clear" and replay the buffer.
+        The spot list visibly blanked and repopulated on a loop, precisely when
+        the operator was watching for something rare.
+        """
+        import server
+        ws = self.FakeWebSocket([json.dumps({"type": "ping"})])
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        try:
+            with patch.object(server.buffer, "recent", return_value=[]):
+                await ws_handler(ws)
+            assert [item["type"] for item in ws.sent] == ["pong"]
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)
+
+    async def test_a_ping_does_not_clear_the_spot_list(self):
+        """Only a filter change clears; a keepalive must not."""
+        import server
+        spot = make_spot(band_m=20)
+        ws = self.FakeWebSocket([json.dumps({"type": "ping"})])
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        try:
+            with patch.object(server.buffer, "recent", return_value=[spot]):
+                await ws_handler(ws)
+            # The initial replay, then the pong -- and no "clear" between them.
+            assert "clear" not in [item["type"] for item in ws.sent]
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)
+
+    async def test_an_unknown_message_type_is_still_ignored(self):
+        import server
+        ws = self.FakeWebSocket([json.dumps({"type": "nonsense"})])
+        old_clients = server.clients.copy()
+        server.clients.clear()
+        try:
+            with patch.object(server.buffer, "recent", return_value=[]):
+                await ws_handler(ws)
+            assert ws.sent == []
+        finally:
+            server.clients.clear()
+            server.clients.update(old_clients)

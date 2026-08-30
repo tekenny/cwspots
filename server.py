@@ -164,6 +164,26 @@ async def ws_handler(ws: websockets.WebSocketServerProtocol) -> None:
                 if len(message) > MAX_FILTER_BYTES:
                     continue
                 msg = json.loads(message)
+                if isinstance(msg, dict) and msg.get("type") == "ping":
+                    # Answer the client's keepalive.
+                    #
+                    # The page closes the socket after three minutes with no
+                    # message received, and it pings every 45 s expecting that
+                    # to prove the link is alive. Nothing here ever replied, so
+                    # on a quiet band -- no spots to send -- the silence looked
+                    # identical to a dead server: the client tore the socket
+                    # down and reconnected every three minutes, and each
+                    # reconnect resends its filters, which makes this handler
+                    # emit a "clear" and replay the buffer. The spot list
+                    # visibly blanked and repopulated on a loop, precisely when
+                    # the operator was watching for something rare.
+                    #
+                    # The client stamps lastMsgTime on *any* message, so a pong
+                    # it otherwise ignores is enough; no page change is needed.
+                    await asyncio.wait_for(
+                        ws.send(json.dumps({"type": "pong"})), timeout=SEND_TIMEOUT
+                    )
+                    continue
                 if isinstance(msg, dict) and msg.get("type") == "filter":
                     filters = msg.get("filters", {})
                     ws.filters = filters if isinstance(filters, dict) else {}
